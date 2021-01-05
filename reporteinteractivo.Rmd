@@ -1,0 +1,435 @@
+---
+title: "Reporte Interactivo de Puntos Digitales - 2020"
+author: "Vinculación Punto Digital"
+date: "05/01/2021"
+output:
+  html_document:
+    theme: cerulean
+runtime: shiny
+resource_files:
+- reporteinteractivo/df.csv
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(plotly)
+library(tm)
+library(RColorBrewer)
+
+df <- read_csv("df.csv")
+
+fecha <- lubridate::ymd(paste(2020,1:12,01,sep = "-"))
+fecha <- tibble(fecha)
+
+```
+
+### Elegí el Punto Digital para ver su reporte del año 2020
+
+```{r input, echo=FALSE}
+inputPanel(
+  selectInput("puntodigital", label = "Seleccioná tu Punto Digital",
+              choices = sort(unique(df$`Punto Digital`)), selected = "")
+)
+```
+
+***
+
+Durante el año 2020 el Punto Digital `r renderText(input$puntodigital)` reportó actividades durante **`r renderText(filter(df, df[2] == input$puntodigital) %>% select(fecha) %>% unique(.) %>% nrow(.))` meses**. Durante esos meses el Punto Digital reportó un total de **¡`r renderText(filter(df, df[2] == input$puntodigital) %>% nrow())` actividades!** y por ellas tuvo **¡`r renderText(filter(df, df[2] == input$puntodigital) %>% select(11) %>% sum())` asistencias!** Así se distribuyeron esas actividades y asistencias del Punto Digital en el año.
+
+```{r actividades, echo=FALSE}
+renderPlotly({
+  
+  df <- filter(df, df$`Punto Digital` == input$puntodigital)
+  
+  df <- full_join(fecha, df, by = c("fecha" = "fecha"))
+  
+  resumen <- df %>% 
+    mutate(Eje = as_factor(Eje)) %>% 
+    group_by(fecha, Eje, .drop = F) %>% 
+    summarise("Cantidad de Actividades" = sum(!(is.na(Actividad)))) %>% 
+    filter(!is.na(Eje))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = fecha, y = `Cantidad de Actividades`, color = Eje, label = Eje))
+  
+  p <- p+
+    geom_line()+
+    geom_point(size = 3)+
+    scale_x_date(date_breaks = "1 month", labels = months)+
+    scale_color_viridis_d()+
+    xlab("")+
+    ylab("Cantidad de Actividades")+
+    ggtitle("Actividades por mes del Punto Digital")+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y", "label"))
+
+  })
+```
+
+---
+
+```{r asistencias, echo=FALSE}
+
+renderPlotly({
+  df <- filter(df, df$`Punto Digital` == input$puntodigital)
+  
+  df <- full_join(fecha, df, by = c("fecha" = "fecha"))
+  
+  resumen <- df %>% 
+    mutate(Eje = as_factor(Eje)) %>% 
+    group_by(fecha, Eje, .drop = F) %>% 
+    summarise("Cantidad de Asistencias" = sum(`Asistentes totales por ejes`, na.rm = T)) %>% 
+    filter(!is.na(Eje))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = fecha, y = `Cantidad de Asistencias`, color = Eje, label = Eje))
+  
+  p <- p+
+    geom_line()+
+    geom_point(size = 3)+
+    scale_x_date(date_breaks = "1 month", labels = months)+
+    scale_color_viridis_d()+
+    xlab("")+
+    ggtitle("Asistencias por mes del Punto Digital")+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y", "label"))
+})
+```
+***
+
+## Tramites
+
+En el Punto Digital hubo **¡`r renderText(filter(df, df[2] == input$puntodigital & df[4] == "Trámites" ) %>% .[[11]] %>% sum())` asistencias!** relacionadas a trámites.
+
+
+```{r asistenciasTramites, echo=FALSE}
+
+renderPlotly({
+  
+  df <- filter(df, df$`Punto Digital` == input$puntodigital & df[4] == "Trámites")
+  df <- full_join(fecha, df, by = c("fecha" = "fecha"))
+  
+  resumen <- df %>% 
+    group_by(fecha, .drop = F) %>% 
+    summarise("Cantidad de Asistencias" = sum(`Asistentes totales por ejes`, na.rm = T))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = fecha, y = `Cantidad de Asistencias`))
+  
+  p <- p+
+    geom_line(color = "#37BBED",)+
+    geom_point(color = "#37BBED", size = 3)+
+    scale_x_date(date_breaks = "1 month", labels = months)+
+    scale_y_continuous(labels = scales::comma)+
+    xlab("")+
+    ggtitle("Asistencias en Trámites por mes")+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y"))
+})
+```
+
+***
+
+**Principal grupo etario asistente a trámites.**
+
+```{r textoEdadTramites, echo=FALSE}
+
+renderText({
+   validate(
+    need(filter(df, df$`Punto Digital` == input$puntodigital & df[4] == "Trámites")
+         %>% .[[11]] %>% sum() != 0,
+         message = "No hay información reportada por el Punto Digital sobre este tema")
+    )
+  
+  grupoEtario <- filter(df, df[2] == input$puntodigital & df[4] == "Trámites") %>%
+    select("Menores de 12", "De 12 a 20", "De 21 a 65", "Mayores de 65") %>%
+    pivot_longer(names_to = "Edad", values_to = "edad_x", cols = c("Menores de 12", "De 12 a 20", "De 21 a 65", "Mayores de 65")) %>%
+    group_by(Edad) %>% summarise("Cantidad de Asistencias" = sum(edad_x, na.rm = T)) %>%
+    top_n(n = 1) %>% .[[1,1]]
+  
+  paste("El principal grupo etario que asistió al Punto Digital por trámites fueron personas", grupoEtario, "años")
+  })
+```
+
+
+```{r asistenciasEdadTramites, echo=FALSE}
+renderPlotly({
+  df <- filter(df, df$`Punto Digital` == input$puntodigital & df[4] == "Trámites")
+  
+  resumen <- df %>% 
+    select(`Menores de 12`, `De 12 a 20`, `De 21 a 65`, `Mayores de 65`) %>% 
+    pivot_longer(names_to = "Edad", values_to = "edad_x", 
+                 cols = c(`Menores de 12`, `De 12 a 20`, `De 21 a 65`, `Mayores de 65`)) %>%  
+    group_by(Edad) %>%
+    summarise("Cantidad de Asistencias" = sum(edad_x, na.rm = T))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = Edad, y = `Cantidad de Asistencias`, fill = Edad))
+  
+  p <- p+
+    geom_col()+
+    scale_y_continuous(labels = scales::comma)+
+    scale_fill_viridis_d()+
+    xlab("Grupo de Edad")+
+    ggtitle("Asistencias en Trámites por Grupo de Edad")+
+    guides(fill = F)+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y", "x"))
+})
+```
+
+***
+
+**Tipos de trámites gestionados en el Punto Digital.**
+
+```{r textoTipoTramite, echo=FALSE}
+
+renderText({
+   validate(
+    need(filter(df, df$`Punto Digital` == input$puntodigital & df[4] == "Trámites")
+         %>% .[[11]] %>% sum() != 0,
+         message = "No hay información reportada por el Punto Digital sobre este tema")
+    )
+  
+  tipoTramite <- filter(df, df[2] == input$puntodigital & df[4] == "Trámites") %>%
+    mutate(Asistencias = .[[11]]) %>% group_by(Categoría) %>%
+    summarise("Cantidad de Asistencias" = sum(Asistencias,na.rm = T)) %>%
+    top_n(n = 1) %>% .[[1,1]]
+  
+  asistentesTipoTramite <- filter(df, df[2] == input$puntodigital & df[4] == "Trámites") %>%
+    mutate(Asistencias = .[[11]]) %>% group_by(Categoría) %>%
+    summarise("Cantidad de Asistencias" = sum(Asistencias,na.rm = T)) %>%
+    top_n(n = 1) %>% .[[1,2]]
+  
+  paste("El principal tipo de trámite gestionado fue", tipoTramite, "con", asistentesTipoTramite, "asistencias durante todo el año")
+  })
+```
+
+
+```{r asistenciasCategoriaTramites, echo=FALSE}
+renderPlotly({
+  df <- filter(df, df$`Punto Digital` == input$puntodigital & df[4] == "Trámites")
+  
+  resumen <- df %>% 
+    group_by(Categoría) %>%
+    summarise("Cantidad de Asistencias" = sum(`Asistentes totales por ejes`, na.rm = T))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = Categoría, y = `Cantidad de Asistencias`, fill = Categoría))
+  
+  p <- p+
+    geom_col()+
+    scale_y_continuous(labels = scales::comma)+
+    scale_fill_viridis_d()+
+    xlab("Categoría de Trámite")+
+    ggtitle("Asistencias en Trámites por Categoría de Trámite")+
+    guides(fill = F)+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y", "x"))
+})
+```
+***
+
+## Actividades Culturales y de Capacitación
+
+Las actividades culturales y de capacitación realizadas por el Punto Digital generaron `r renderText(filter(df, df[2] == input$puntodigital & df[4] != "Trámites" ) %>% .[[11]] %>% sum())` asistencias.
+
+
+```{r asistenciasOtrasActividades, echo=FALSE}
+
+renderPlotly({
+  df <- filter(df, df$`Punto Digital` == input$puntodigital & df[4] != "Trámites")
+  
+  df <- full_join(fecha, df, by = c("fecha" = "fecha"))
+  
+  resumen <- df %>% 
+    group_by(fecha, .drop = F) %>% 
+    summarise("Cantidad de Asistencias" = sum(`Asistentes totales por ejes`, na.rm = T))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = fecha, y = `Cantidad de Asistencias`))
+  
+  p <- p+
+    geom_line(color = "#37BBED",)+
+    geom_point(color = "#37BBED", size = 3)+
+    scale_x_date(date_breaks = "1 month", labels = months)+
+    scale_y_continuous(labels = scales::comma)+
+    xlab("")+
+    ggtitle("Asistencias en Actividades Culturales y de Capacitación \npor mes")+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y"))
+})
+```
+
+***
+
+**Principal grupo etario asistente a actividades culturales y de capacitación**
+
+```{r textoEdadotrasActividades, echo=FALSE}
+
+renderText({
+   validate(
+    need(filter(df, df$`Punto Digital` == input$puntodigital & df[4] != "Trámites")
+         %>% .[[11]] %>% sum() != 0,
+         message = "No hay información reportada por el Punto Digital sobre este tema")
+    )
+  
+  grupoEtario <- filter(df, df[2] == input$puntodigital & df[4] != "Trámites") %>%
+    select("Menores de 12", "De 12 a 20", "De 21 a 65", "Mayores de 65") %>%
+    pivot_longer(names_to = "Edad", values_to = "edad_x", cols = c("Menores de 12", "De 12 a 20", "De 21 a 65", "Mayores de 65")) %>%
+    group_by(Edad) %>% summarise("Cantidad de Asistencias" = sum(edad_x, na.rm = T)) %>%
+    top_n(n = 1) %>% .[[1,1]]
+  
+  paste("El principal grupo etario que asistió al Punto Digital por actividades culturales y de capacitación fueron personas", grupoEtario, "años")
+  })
+```
+
+```{r asistenciasEdadotrasActividades, echo=FALSE}
+renderPlotly({
+  df <- filter(df, df$`Punto Digital` == input$puntodigital & df[4] != "Trámites")
+  
+  resumen <- df %>% 
+    select(`Menores de 12`, `De 12 a 20`, `De 21 a 65`, `Mayores de 65`) %>% 
+    pivot_longer(names_to = "Edad", values_to = "edad_x", 
+                 cols = c(`Menores de 12`, `De 12 a 20`, `De 21 a 65`, `Mayores de 65`)) %>%  
+    group_by(Edad) %>%
+    summarise("Cantidad de Asistencias" = sum(edad_x, na.rm = T))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = Edad, y = `Cantidad de Asistencias`, fill = Edad))
+  
+  p <- p+
+    geom_col()+
+    scale_y_continuous(labels = scales::comma)+
+    scale_fill_viridis_d()+
+    xlab("Grupo de Edad")+
+    ggtitle("Asistencias en Actividades Culturales y de Capacitación \npor Grupo de Edad")+
+    guides(fill = F)+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y", "x"))
+})
+```
+
+***
+
+**Tipos de Actividades Culturales y Educativas realizadas en el Punto Digital.**
+
+```{r textoTipoOtrasActividades, echo=FALSE}
+renderText({
+   validate(
+    need(filter(df, df$`Punto Digital` == input$puntodigital & df[4] != "Trámites")
+         %>% .[[11]] %>% sum() != 0,
+         message = "No hay información reportada por el Punto Digital sobre este tema")
+    )
+  
+  tipoOtraActividad <- filter(df, df[2] == input$puntodigital & df[4] != "Trámites") %>%
+    mutate(Asistencias = .[[11]]) %>% group_by(Categoría) %>%
+    summarise("Cantidad de Asistencias" = sum(Asistencias,na.rm = T)) %>%
+    top_n(n = 1) %>% .[[1,1]]
+  
+  asistentesTipOtraActividad <- filter(df, df[2] == input$puntodigital & df[4] != "Trámites") %>%
+    mutate(Asistencias = .[[11]]) %>% group_by(Categoría) %>%
+    summarise("Cantidad de Asistencias" = sum(Asistencias,na.rm = T)) %>%
+    top_n(n = 1) %>% .[[1,2]]
+  
+  paste("El principal tipo de actividad de gestionado fue", tipoOtraActividad, "con", asistentesTipOtraActividad, "asistencias durante todo el año")
+  })
+```
+
+
+
+```{r asistenciasCategoriaotrasActividades, echo=FALSE}
+renderPlotly({
+  df <- filter(df, df$`Punto Digital` == input$puntodigital & df[4] != "Trámites")
+  
+  resumen <- df %>% 
+    group_by(Categoría) %>%
+    summarise("Cantidad de Asistencias" = sum(`Asistentes totales por ejes`, na.rm = T))
+  
+  p <- resumen  %>% 
+  ggplot(aes(x = Categoría, y = `Cantidad de Asistencias`, fill = Categoría))
+  
+  p <- p+
+    geom_col()+
+    scale_y_continuous(labels = scales::comma)+
+    scale_fill_viridis_d()+
+    xlab("Categoría de Trámite")+
+    ggtitle("Asistencias en Trámites por Categoría de Trámite")+
+    guides(fill = F)+
+    theme_minimal()
+  
+  ggplotly(p, tooltip = c("y", "x"))
+})
+```
+
+***
+
+## Las actividades del Punto Digital
+
+Estas palabras resumen el trabajo del Punto Digital durante el año.
+
+```{r nubeDepalabras, echo=FALSE}
+renderPlot({
+  resumen <- df %>% 
+    filter(df[2] == input$puntodigital & df[4] != "Videoconferencias") %>% 
+    group_by(Actividad) %>% 
+    summarise(n())
+  
+  resumen$Actividad <- iconv(resumen$Actividad, from = 'UTF-8', to = 'ASCII//TRANSLIT')
+  
+  mi_funcion <- content_transformer(function(x,pattern) gsub(pattern," ",x))
+  removeAccents <- content_transformer(function(x) chartr("áéíóú", "aeiou", x))
+  
+  myCorpus = Corpus(VectorSource(resumen$Actividad))
+  myCorpus = tm_map(myCorpus, tolower)
+  myCorpus = tm_map(myCorpus, removePunctuation)
+  myCorpus = tm_map(myCorpus, stripWhitespace)
+  myCorpus = tm_map(myCorpus, removeNumbers)
+  myCorpus = tm_map(myCorpus, removeWords, stopwords("spanish"))
+  # palabras especificas de nuestro corpus para remover
+  myCorpus = tm_map(myCorpus, removeWords, c("videoconferencia","videoconferencias", "vc","ciclo","pro"))
+  myCorpus = tm_map(myCorpus, removeAccents)
+  
+  
+  tdm <- TermDocumentMatrix(myCorpus)
+  m = as.matrix(tdm)
+  v = sort(rowSums(m), decreasing = TRUE)
+  df_palabras <- data.frame(word = names(v),freq=v) # lo nombra y le da formato de data.frame
+  
+  wordcloud::wordcloud(words = df_palabras$word, freq = df_palabras$freq, min.freq = 1,
+            max.words=200, random.order=FALSE, rot.per=0.35, 
+            colors=brewer.pal(8, "Dark2"), random.color = T)
+})
+```
+
+***
+
+## Detalle de las actividades realizadas
+
+La siguiente tabla contiene todas las actividades realizadas por el Punto Digital y las asistencias que le corresponden por grupo de edad.
+
+```{r tabladeActividades, echo=FALSE}
+
+renderTable({
+  df <- df %>% 
+    filter(df$`Punto Digital` == input$puntodigital)
+  
+  df <- df %>% 
+    mutate(fecha = as.character(lubridate::as_date(fecha)))
+  
+  df
+})
+```
+
+***
+***
+
+**Por consultas o correcciones escribir a juaraj@jefatura.gob.ar**
