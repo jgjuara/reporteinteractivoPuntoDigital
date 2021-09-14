@@ -1,13 +1,12 @@
 ---
-title: "Reporte Interactivo de Puntos Digitales - 2020"
+title: "Reporte Interactivo de Puntos Digitales"
 author: "Vinculación Punto Digital"
-date: "05/01/2021"
 output:
   html_document:
     theme: cerulean
 runtime: shiny
 resource_files:
-- reporteinteractivo/df.csv
+- sources/df.csv
 ---
 
 ```{r setup, include=FALSE}
@@ -16,15 +15,17 @@ library(tidyverse)
 library(plotly)
 library(tm)
 library(RColorBrewer)
+library(lubridate)
 
-df <- read_csv("df.csv")
+df <- read_csv("sources/df.csv")
 
-fecha <- lubridate::ymd(paste(2020,1:12,01,sep = "-"))
+#tabla de fechas porque el df de datos no tiene necesariamente todos los meses
+fecha <- seq(ymd(20210101), ymd(20211201), by = "month")
 fecha <- tibble(fecha)
 
 ```
 
-### Elegí el Punto Digital para ver su reporte del año 2020
+### Elegí el Punto Digital para ver su reporte del año `r year(fecha[[1,1]])`
 
 ```{r input, echo=FALSE}
 inputPanel(
@@ -35,7 +36,7 @@ inputPanel(
 
 ***
 
-Durante el año 2020 el Punto Digital `r renderText(input$puntodigital)` reportó actividades durante **`r renderText(filter(df, df[2] == input$puntodigital) %>% select(fecha) %>% unique(.) %>% nrow(.))` meses**. Durante esos meses el Punto Digital reportó un total de **¡`r renderText(filter(df, df[2] == input$puntodigital) %>% nrow())` actividades!** y por ellas tuvo **¡`r renderText(filter(df, df[2] == input$puntodigital) %>% select(11) %>% sum())` asistencias!** Así se distribuyeron esas actividades y asistencias del Punto Digital en el año.
+Durante el año `r year(fecha[[1,1]])` el Punto Digital `r renderText(input$puntodigital)` reportó actividades durante **`r renderText(filter(df, df[2] == input$puntodigital) %>% select(fecha) %>% unique(.) %>% nrow(.))` meses**. Durante esos meses el Punto Digital reportó un total de **¡`r renderText(filter(df, df[2] == input$puntodigital) %>% nrow())` actividades!** y por ellas tuvo **¡`r renderText(filter(df, df[2] == input$puntodigital) %>% select(11) %>% sum())` asistencias!** Así se distribuyeron esas actividades y asistencias del Punto Digital en el año.
 
 ```{r actividades, echo=FALSE}
 renderPlotly({
